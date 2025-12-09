@@ -47,7 +47,7 @@
         <!-- Code Quality -->
         <checkstyle.version>10.20.2</checkstyle.version>
         <spotbugs.version>4.8.6</spotbugs.version>
-        <pmd.version>7.8.0</pmd.version>
+        <pmd.version>7.10.0</pmd.version>
 
         <!-- Security -->
         <owasp.dependency-check.version>11.1.1</owasp.dependency-check.version>
