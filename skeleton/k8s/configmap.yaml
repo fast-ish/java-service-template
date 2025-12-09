@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${{values.name}}-config
+  labels:
+    app.kubernetes.io/name: ${{values.name}}
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: ${{values.owner}}
+    app.kubernetes.io/managed-by: backstage
+data:
+  LOG_LEVEL: "INFO"
+  JVM_OPTS: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport -XX:+HeapDumpOnOutOfMemoryError"
+  # SRE Configuration
+  TRACE_SAMPLING_PROBABILITY: "1.0"

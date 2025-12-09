@@ -1,0 +1,205 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${{values.name}}
+  labels:
+    app.kubernetes.io/name: ${{values.name}}
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: ${{values.owner}}
+    app.kubernetes.io/managed-by: backstage
+    tags.datadoghq.com/env: "${ENVIRONMENT}"
+    tags.datadoghq.com/service: ${{values.name}}
+    tags.datadoghq.com/version: "${APP_VERSION}"
+  annotations:
+    backstage.io/kubernetes-id: ${{values.name}}
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ${{values.name}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ${{values.name}}
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: ${{values.owner}}
+        tags.datadoghq.com/env: "${ENVIRONMENT}"
+        tags.datadoghq.com/service: ${{values.name}}
+        tags.datadoghq.com/version: "${APP_VERSION}"
+        admission.datadoghq.com/enabled: "true"
+      annotations:
+        # Datadog Unified Service Tagging
+        ad.datadoghq.com/${{values.name}}.logs: '[{"source":"java","service":"${{values.name}}"}]'
+        ad.datadoghq.com/${{values.name}}.checks: |
+          {
+            "openmetrics": {
+              "instances": [
+                {
+                  "openmetrics_endpoint": "http://%%host%%:8081/prometheus",
+                  "namespace": "${{values.name}}",
+                  "metrics": [".*"]
+                }
+              ]
+            }
+          }
+        # Prometheus scraping (if using Prometheus Operator)
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/prometheus"
+    spec:
+      serviceAccountName: ${{values.owner}}-workload
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ${{values.name}}
+          image: IMAGE_URI:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: management
+              containerPort: 8081
+              protocol: TCP
+          env:
+            # Application Config
+            - name: APP_NAME
+              value: "${{values.name}}"
+            - name: APP_VERSION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/version']
+            - name: ENVIRONMENT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/env']
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: ${{values.name}}-config
+                  key: LOG_LEVEL
+            # Datadog APM - Agent Host from Downward API
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_SERVICE
+              value: "${{values.name}}"
+            - name: DD_ENV
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/env']
+            - name: DD_VERSION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/version']
+            - name: DD_TRACE_ENABLED
+              value: "true"
+            - name: DD_LOGS_INJECTION
+              value: "true"
+            - name: DD_PROFILING_ENABLED
+              value: "true"
+            - name: DD_APPSEC_ENABLED
+              value: "true"
+            - name: DD_RUNTIME_METRICS_ENABLED
+              value: "true"
+            # Pod info for Datadog
+            - name: DD_KUBERNETES_KUBELET_NODENAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: DD_ENTITY_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            # JVM Memory tuning
+            - name: JAVA_OPTS
+              valueFrom:
+                configMapKeyRef:
+                  name: ${{values.name}}-config
+                  key: JVM_OPTS
+          envFrom:
+            - secretRef:
+                name: ${{values.name}}-secrets
+                optional: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # Liveness: Is the app alive? Restart if fails
+          livenessProbe:
+            httpGet:
+              path: /health/liveness
+              port: management
+            initialDelaySeconds: 45
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          # Readiness: Can the app serve traffic?
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: management
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
+          # Startup: Give slow-starting apps time to initialize
+          startupProbe:
+            httpGet:
+              path: /health/liveness
+              port: management
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+            successThreshold: 1
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          lifecycle:
+            preStop:
+              exec:
+                # Allow in-flight requests to complete
+                command: ["sh", "-c", "sleep 10"]
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ${{values.name}}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: ${{values.name}}
+                topologyKey: kubernetes.io/hostname

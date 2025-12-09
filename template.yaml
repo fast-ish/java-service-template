@@ -1,0 +1,334 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: java-service-template
+  title: Java Service (Golden Path)
+  description: |
+    Production-ready Spring Boot service with Datadog observability, Google SRE best practices,
+    optional AI integration (Spring AI, OpenAI, Anthropic, Bedrock), and AWS infrastructure.
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - java
+    - spring-boot
+    - golden-path
+    - datadog
+    - sre
+    - recommended
+spec:
+  owner: platform
+  type: service
+
+  parameters:
+    - title: Service Info
+      required:
+        - name
+        - owner
+      properties:
+        name:
+          title: Service Name
+          type: string
+          description: Unique name of the service (lowercase, hyphens allowed)
+          pattern: '^[a-z][a-z0-9-]*$'
+          ui:autofocus: true
+          ui:help: "Example: user-service, order-api"
+        owner:
+          title: Owner Team
+          type: string
+          description: Team responsible for this service
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        description:
+          title: Description
+          type: string
+          description: Brief description of this service
+          ui:widget: textarea
+
+    - title: Runtime Configuration
+      properties:
+        javaVersion:
+          title: Java Version
+          type: string
+          enum:
+            - "21"
+            - "17"
+          enumNames:
+            - "Java 21 LTS (Recommended)"
+            - "Java 17 LTS"
+          default: "21"
+        springBootVersion:
+          title: Spring Boot Version
+          type: string
+          enum:
+            - "3.4"
+            - "3.3"
+          enumNames:
+            - "Spring Boot 3.4 (Latest)"
+            - "Spring Boot 3.3"
+          default: "3.4"
+
+    - title: AI Integration
+      description: Configure AI/LLM capabilities for your service
+      properties:
+        aiClient:
+          title: AI Client Library
+          type: string
+          enum:
+            - none
+            - spring-ai
+            - langchain4j
+            - openai
+            - anthropic
+            - bedrock
+          enumNames:
+            - "None"
+            - "Spring AI (Recommended - Spring abstraction layer)"
+            - "LangChain4j (Full-featured AI toolkit with RAG, tools, agents)"
+            - "OpenAI Java SDK (Direct)"
+            - "Anthropic Java SDK (Direct)"
+            - "AWS Bedrock SDK (Direct)"
+          default: none
+          description: Choose an AI client library for LLM integration
+      dependencies:
+        aiClient:
+          oneOf:
+            - properties:
+                aiClient:
+                  const: none
+            - properties:
+                aiClient:
+                  const: spring-ai
+                aiProvider:
+                  title: AI Provider (for Spring AI)
+                  type: string
+                  enum:
+                    - openai
+                    - anthropic
+                    - bedrock
+                  enumNames:
+                    - "OpenAI (GPT-4, GPT-4o)"
+                    - "Anthropic (Claude)"
+                    - "AWS Bedrock (Multi-model)"
+                  default: openai
+                  description: Select the AI provider to use with Spring AI
+              required:
+                - aiProvider
+            - properties:
+                aiClient:
+                  const: langchain4j
+                aiProvider:
+                  title: AI Provider (for LangChain4j)
+                  type: string
+                  enum:
+                    - openai
+                    - anthropic
+                    - bedrock
+                  enumNames:
+                    - "OpenAI (GPT-4, GPT-4o)"
+                    - "Anthropic (Claude)"
+                    - "AWS Bedrock (Multi-model)"
+                  default: openai
+                  description: Select the AI provider to use with LangChain4j
+              required:
+                - aiProvider
+            - properties:
+                aiClient:
+                  const: openai
+            - properties:
+                aiClient:
+                  const: anthropic
+            - properties:
+                aiClient:
+                  const: bedrock
+
+    - title: Data Layer
+      description: Configure database and caching options
+      properties:
+        database:
+          title: Database
+          type: string
+          enum:
+            - none
+            - aurora-postgresql
+            - aurora-mysql
+            - dynamodb
+          enumNames:
+            - "None"
+            - "Aurora PostgreSQL (Recommended for relational)"
+            - "Aurora MySQL"
+            - "DynamoDB (NoSQL)"
+          default: none
+          description: Primary data store for the service
+        cache:
+          title: Cache
+          type: string
+          enum:
+            - none
+            - elasticache-redis
+          enumNames:
+            - "None"
+            - "ElastiCache Redis"
+          default: none
+          description: Distributed cache for improved performance
+
+    - title: Messaging
+      description: Configure asynchronous messaging
+      properties:
+        messaging:
+          title: Messaging
+          type: string
+          enum:
+            - none
+            - sqs
+            - sns-sqs
+          enumNames:
+            - "None"
+            - "SQS (Queue consumer)"
+            - "SNS + SQS (Pub/Sub with queue)"
+          default: none
+          description: AWS messaging integration
+
+    - title: Observability (SRE)
+      description: Configure monitoring, tracing, and metrics
+      properties:
+        tracing:
+          title: Distributed Tracing
+          type: boolean
+          default: true
+          description: Enable OpenTelemetry distributed tracing with Datadog APM
+          ui:help: "Traces requests across services for debugging and performance analysis"
+        metrics:
+          title: Prometheus Metrics
+          type: boolean
+          default: true
+          description: Enable Micrometer Prometheus metrics endpoint
+          ui:help: "Exposes /prometheus endpoint for metrics scraping"
+        sloAvailability:
+          title: Availability SLO Target
+          type: string
+          enum:
+            - "99.0"
+            - "99.5"
+            - "99.9"
+            - "99.95"
+          enumNames:
+            - "99.0% (3.65 days/year downtime)"
+            - "99.5% (1.83 days/year downtime)"
+            - "99.9% (8.76 hours/year downtime)"
+            - "99.95% (4.38 hours/year downtime)"
+          default: "99.9"
+          description: Target availability SLO for this service
+        sloLatencyP99:
+          title: Latency SLO (P99)
+          type: string
+          enum:
+            - "100ms"
+            - "200ms"
+            - "500ms"
+            - "1s"
+            - "5s"
+          enumNames:
+            - "100ms (High performance)"
+            - "200ms (Standard API)"
+            - "500ms (Default)"
+            - "1s (Batch/Complex)"
+            - "5s (Background jobs)"
+          default: "500ms"
+          description: Target P99 latency for API requests
+
+    - title: Developer Experience
+      description: Additional developer tooling and features
+      properties:
+        featureFlags:
+          title: Feature Flags
+          type: boolean
+          default: false
+          description: Enable Togglz feature flag support
+          ui:help: "Provides runtime feature toggles with a management console"
+        testContainers:
+          title: TestContainers
+          type: boolean
+          default: true
+          description: Include TestContainers for integration testing
+          ui:help: "Enables container-based integration tests for databases, caches, etc."
+        archUnit:
+          title: ArchUnit Tests
+          type: boolean
+          default: true
+          description: Include ArchUnit for architecture validation
+          ui:help: "Enforces coding standards and architectural rules via tests"
+
+    - title: Repository
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Repository Location
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+
+  steps:
+    - id: fetch-skeleton
+      name: Fetch Skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          owner: ${{ parameters.owner }}
+          description: ${{ parameters.description }}
+          javaVersion: ${{ parameters.javaVersion }}
+          springBootVersion: ${{ parameters.springBootVersion }}
+          aiClient: ${{ parameters.aiClient }}
+          aiProvider: ${{ parameters.aiProvider }}
+          database: ${{ parameters.database }}
+          cache: ${{ parameters.cache }}
+          messaging: ${{ parameters.messaging }}
+          tracing: ${{ parameters.tracing }}
+          metrics: ${{ parameters.metrics }}
+          sloAvailability: ${{ parameters.sloAvailability }}
+          sloLatencyP99: ${{ parameters.sloLatencyP99 }}
+          featureFlags: ${{ parameters.featureFlags }}
+          testContainers: ${{ parameters.testContainers }}
+          archUnit: ${{ parameters.archUnit }}
+          repoUrl: ${{ parameters.repoUrl }}
+
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        allowedHosts:
+          - github.com
+        repoUrl: ${{ parameters.repoUrl }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        protectDefaultBranch: true
+        repoVisibility: private
+        topics:
+          - java
+          - spring-boot
+          - backstage
+          - ${{ parameters.owner }}
+
+    - id: register
+      name: Register Component
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in Backstage
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: Datadog APM
+        icon: dashboard
+        url: https://app.datadoghq.com/apm/services/${{ parameters.name }}

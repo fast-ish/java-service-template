@@ -1,0 +1,41 @@
+# Test profile configuration
+spring:
+  application:
+    name: ${{values.name}}-test
+
+# Disable Datadog in tests
+management:
+  datadog:
+    metrics:
+      export:
+        enabled: false
+
+# Logging - simplified for tests
+logging:
+  level:
+    root: WARN
+    fasti.sh: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+{%- if values.featureFlags %}
+# Feature flags - all enabled for testing
+togglz:
+  enabled: true
+  console:
+    enabled: false
+{%- endif %}
+
+# Resilience4j - relaxed for testing
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 5
+        minimumNumberOfCalls: 2
+        waitDurationInOpenState: 1s
+  retry:
+    configs:
+      default:
+        maxAttempts: 2
+        waitDuration: 100ms

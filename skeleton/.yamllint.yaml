@@ -1,0 +1,27 @@
+# yamllint configuration
+extends: default
+
+rules:
+  line-length:
+    max: 150
+    allow-non-breakable-inline-mappings: true
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no']
+  comments:
+    require-starting-space: true
+    min-spaces-from-content: 1
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  document-start: disable
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+
+ignore: |
+  .github/
+  target/
+  node_modules/

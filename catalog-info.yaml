@@ -1,0 +1,23 @@
+apiVersion: backstage.io/v1alpha1
+kind: Template
+metadata:
+  name: java-service-template
+  title: Java Service (Golden Path)
+  description: |
+    Production-ready Spring Boot service with Datadog observability, Google SRE best practices,
+    and optional Aurora PostgreSQL/MySQL, ElastiCache Redis, and SQS/SNS messaging.
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - java
+    - spring-boot
+    - golden-path
+    - datadog
+    - sre
+    - recommended
+    - api
+    - backend
+spec:
+  type: service
+  lifecycle: production
+  owner: platform

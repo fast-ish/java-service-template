@@ -1,0 +1,154 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{values.name}}
+  title: ${{values.name | title}}
+  description: ${{values.description | default("Java Spring Boot service", true)}}
+  annotations:
+    # Backstage integrations
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/kubernetes-id: ${{values.name}}
+    backstage.io/kubernetes-namespace: ${{values.owner}}
+    backstage.io/kubernetes-label-selector: app.kubernetes.io/name=${{values.name}}
+
+    # Source control
+    github.com/project-slug: ${{values.repoUrl | parseRepoUrl | pick('owner') }}/${{values.repoUrl | parseRepoUrl | pick('repo') }}
+
+    # Datadog integration
+    datadoghq.com/service: ${{values.name}}
+    datadoghq.com/env: production
+    datadoghq.com/site: datadoghq.com
+
+    # PagerDuty (optional - configure in Backstage)
+    # pagerduty.com/integration-key: YOUR_INTEGRATION_KEY
+
+    # SLO targets (for documentation and dashboards)
+    slo/availability-target: "99.9"
+    slo/latency-p99-target: "500ms"
+    slo/error-budget: "0.1"
+
+  tags:
+    - java
+    - spring-boot
+    - ${{values.javaVersion | default("21", true)}}
+    {%- if values.database != "none" %}
+    - ${{values.database}}
+    {%- endif %}
+    {%- if values.cache != "none" %}
+    - redis
+    {%- endif %}
+    {%- if values.messaging != "none" %}
+    - ${{values.messaging}}
+    {%- endif %}
+
+  links:
+    - url: https://app.datadoghq.com/apm/services/${{values.name}}
+      title: Datadog APM
+      icon: dashboard
+    - url: https://app.datadoghq.com/logs?query=service%3A${{values.name}}
+      title: Datadog Logs
+      icon: article
+    - url: https://app.datadoghq.com/dashboard/lists?q=${{values.name}}
+      title: Datadog Dashboards
+      icon: dashboard
+
+spec:
+  type: service
+  lifecycle: production
+  owner: ${{values.owner}}
+  system: ${{values.owner}}-platform
+
+  # API provided by this service
+  providesApis:
+    - ${{values.name}}-api
+
+  {%- if values.database != "none" %}
+  dependsOn:
+    - resource:${{values.name}}-database
+  {%- endif %}
+  {%- if values.cache != "none" %}
+    - resource:${{values.name}}-cache
+  {%- endif %}
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{values.name}}-api
+  title: ${{values.name | title}} API
+  description: REST API for ${{values.name}}
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+spec:
+  type: openapi
+  lifecycle: production
+  owner: ${{values.owner}}
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: ${{values.name | title}} API
+      version: 1.0.0
+      description: REST API for ${{values.name}}
+    servers:
+      - url: /api/v1
+    paths:
+      /status:
+        get:
+          summary: Service status
+          operationId: getStatus
+          responses:
+            '200':
+              description: Service is healthy
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+      /info:
+        get:
+          summary: Service information
+          operationId: getInfo
+          responses:
+            '200':
+              description: Service information
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      version:
+                        type: string
+                      environment:
+                        type: string
+
+{%- if values.database == "aurora-postgresql" or values.database == "aurora-mysql" %}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ${{values.name}}-database
+  title: ${{values.name | title}} Database
+  description: {%- if values.database == "aurora-postgresql" %}Aurora PostgreSQL database for ${{values.name}}{%- else %}Aurora MySQL database for ${{values.name}}{%- endif %}
+spec:
+  type: database
+  owner: ${{values.owner}}
+  system: ${{values.owner}}-platform
+{%- endif %}
+
+{%- if values.cache == "elasticache-redis" %}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ${{values.name}}-cache
+  title: ${{values.name | title}} Cache
+  description: ElastiCache Redis cluster for ${{values.name}}
+spec:
+  type: cache
+  owner: ${{values.owner}}
+  system: ${{values.owner}}-platform
+{%- endif %}

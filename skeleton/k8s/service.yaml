@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${{values.name}}
+  labels:
+    app.kubernetes.io/name: ${{values.name}}
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: ${{values.owner}}
+    app.kubernetes.io/managed-by: backstage
+  annotations:
+    backstage.io/kubernetes-id: ${{values.name}}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ${{values.name}}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: management
+      port: 8081
+      targetPort: management
+      protocol: TCP

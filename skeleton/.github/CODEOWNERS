@@ -1,0 +1,15 @@
+# Code Owners for ${{values.name}}
+# These owners will be requested for review on PRs
+
+# Default owners for everything
+* @${{values.owner}}
+
+# Security-sensitive files require security team review
+/.github/workflows/ @${{values.owner}} @security-team
+/k8s/ @${{values.owner}} @platform-team
+**/security/** @${{values.owner}} @security-team
+Dockerfile @${{values.owner}} @security-team
+
+# Configuration files
+pom.xml @${{values.owner}}
+application.yaml @${{values.owner}}
