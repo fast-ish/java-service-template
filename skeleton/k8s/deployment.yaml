@@ -1,0 +1,155 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${{values.name}}
+  labels:
+    app.kubernetes.io/name: ${{values.name}}
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: ${{values.owner}}
+    app.kubernetes.io/managed-by: backstage
+  annotations:
+    backstage.io/kubernetes-id: ${{values.name}}
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ${{values.name}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ${{values.name}}
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: ${{values.owner}}
+      annotations:
+        # OpenTelemetry auto-instrumentation
+        instrumentation.opentelemetry.io/inject-java: "true"
+        # Prometheus scraping
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/prometheus"
+    spec:
+      serviceAccountName: ${{values.owner}}-workload
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ${{values.name}}
+          image: IMAGE_URI:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: management
+              containerPort: 8081
+              protocol: TCP
+          env:
+            # Application Config
+            - name: APP_NAME
+              value: "${{values.name}}"
+            - name: APP_VERSION
+              value: "${APP_VERSION}"
+            - name: ENVIRONMENT
+              value: "production"
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: ${{values.name}}-config
+                  key: LOG_LEVEL
+            # OpenTelemetry Configuration
+            - name: OTEL_SERVICE_NAME
+              value: "${{values.name}}"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://grafana-alloy.observability:4318"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace=team-${{values.owner}},deployment.environment=production"
+            # JVM Memory tuning
+            - name: JAVA_OPTS
+              valueFrom:
+                configMapKeyRef:
+                  name: ${{values.name}}-config
+                  key: JVM_OPTS
+          envFrom:
+            - secretRef:
+                name: ${{values.name}}-secrets
+                optional: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # Liveness: Is the app alive? Restart if fails
+          livenessProbe:
+            httpGet:
+              path: /health/liveness
+              port: management
+            initialDelaySeconds: 45
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          # Readiness: Can the app serve traffic?
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: management
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
+          # Startup: Give slow-starting apps time to initialize
+          startupProbe:
+            httpGet:
+              path: /health/liveness
+              port: management
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+            successThreshold: 1
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          lifecycle:
+            preStop:
+              exec:
+                # Allow in-flight requests to complete
+                command: ["sh", "-c", "sleep 10"]
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ${{values.name}}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: ${{values.name}}
+                topologyKey: kubernetes.io/hostname

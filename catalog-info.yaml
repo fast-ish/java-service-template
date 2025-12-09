@@ -1,0 +1,8 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: java-service-template
+  description: Production-ready Spring Boot service with Grafana observability and Google SRE best practices
+spec:
+  targets:
+    - ./template.yaml

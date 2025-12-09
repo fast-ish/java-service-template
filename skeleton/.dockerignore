@@ -1,0 +1,9 @@
+target/
+!target/*.jar
+.git
+.gitignore
+.idea
+*.iml
+.mvn/repository
+README.md
+k8s/

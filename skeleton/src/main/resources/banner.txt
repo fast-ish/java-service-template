@@ -1,0 +1,15 @@
+
+  ____       _     _             ____       _   _
+ / ___| ___ | | __| | ___ _ __  |  _ \ __ _| |_| |__
+| |  _ / _ \| |/ _` |/ _ \ '_ \ | |_) / _` | __| '_ \
+| |_| | (_) | | (_| |  __/ | | ||  __/ (_| | |_| | | |
+ \____|\___/|_|\__,_|\___|_| |_||_|   \__,_|\__|_| |_|
+
+ ${AnsiColor.CYAN}${{values.name}}${AnsiColor.DEFAULT} v${application.version:0.1.0}
+ ${AnsiColor.GREEN}Spring Boot${AnsiColor.DEFAULT} ${spring-boot.version}
+ ${AnsiColor.YELLOW}Java${AnsiColor.DEFAULT} ${java.version}
+
+ ${AnsiColor.BRIGHT_BLACK}API:${AnsiColor.DEFAULT}  http://localhost:${server.port:8080}
+ ${AnsiColor.BRIGHT_BLACK}Docs:${AnsiColor.DEFAULT} http://localhost:${server.port:8080}/swagger-ui.html
+ ${AnsiColor.BRIGHT_BLACK}Health:${AnsiColor.DEFAULT} http://localhost:${management.server.port:8081}/health
+

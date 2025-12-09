@@ -1,0 +1,15 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ${{values.name}}
+  labels:
+    app.kubernetes.io/name: ${{values.name}}
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: ${{values.owner}}
+    app.kubernetes.io/managed-by: backstage
+spec:
+  # Ensure at least 50% of pods are available during voluntary disruptions
+  minAvailable: "50%"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ${{values.name}}

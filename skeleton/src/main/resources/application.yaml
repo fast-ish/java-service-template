@@ -1,0 +1,396 @@
+spring:
+  application:
+    name: ${{values.name}}
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  tomcat:
+    connection-timeout: 5s
+    max-connections: 200
+    threads:
+      max: 100
+      min-spare: 10
+
+# Actuator & Management Endpoints
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,redis,diskSpace
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  info:
+    env:
+      enabled: true
+    git:
+      mode: full
+  metrics:
+    tags:
+      application: ${{values.name}}
+      team: ${{values.owner}}
+      env: ${ENVIRONMENT:development}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms,100ms,200ms,500ms,1s,5s
+
+# Logging - JSON format for Grafana Loki ingestion
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+    fasti.sh: ${LOG_LEVEL:INFO}
+    org.springframework.web: ${LOG_LEVEL:INFO}
+  pattern:
+    # JSON structured logging for Grafana Loki
+    console: '{"timestamp":"%d{ISO8601}","level":"%level","service":"${{values.name}}","trace_id":"%X{traceId:-}","span_id":"%X{spanId:-}","logger":"%logger{36}","message":"%msg","thread":"%thread"}%n'
+
+# OpenTelemetry Tracing (when using OTEL instead of DD agent)
+{%- if values.tracing %}
+tracing:
+  sampling:
+    probability: ${TRACE_SAMPLING_PROBABILITY:1.0}
+{%- endif %}
+
+{%- if values.aiClient == "spring-ai" %}
+# Spring AI Configuration
+spring:
+  ai:
+    {%- if values.aiProvider == "openai" %}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4o}
+          temperature: 0.7
+    {%- elif values.aiProvider == "anthropic" %}
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          model: ${ANTHROPIC_MODEL:claude-sonnet-4-20250514}
+          max-tokens: 1024
+    {%- elif values.aiProvider == "bedrock" %}
+    bedrock:
+      aws:
+        region: ${AWS_REGION:us-east-1}
+      anthropic:
+        chat:
+          enabled: true
+          model: ${BEDROCK_MODEL:anthropic.claude-3-sonnet-20240229-v1:0}
+    {%- endif %}
+{%- endif %}
+
+{%- if values.aiClient == "openai" %}
+# OpenAI SDK Configuration
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: ${OPENAI_MODEL:gpt-4o}
+{%- endif %}
+
+{%- if values.aiClient == "anthropic" %}
+# Anthropic SDK Configuration
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+  model: ${ANTHROPIC_MODEL:claude-sonnet-4-20250514}
+{%- endif %}
+
+{%- if values.aiClient == "bedrock" %}
+# AWS Bedrock Configuration
+aws:
+  bedrock:
+    region: ${AWS_REGION:us-east-1}
+    model-id: ${BEDROCK_MODEL_ID:anthropic.claude-3-sonnet-20240229-v1:0}
+{%- endif %}
+
+{%- if values.aiClient == "langchain4j" %}
+# LangChain4j Configuration
+langchain4j:
+  {%- if values.aiProvider == "openai" %}
+  open-ai:
+    chat-model:
+      api-key: ${OPENAI_API_KEY:}
+      model-name: ${OPENAI_MODEL:gpt-4o}
+      temperature: 0.7
+      timeout: 60s
+      log-requests: ${LOG_AI_REQUESTS:false}
+      log-responses: ${LOG_AI_RESPONSES:false}
+  {%- elif values.aiProvider == "anthropic" %}
+  anthropic:
+    chat-model:
+      api-key: ${ANTHROPIC_API_KEY:}
+      model-name: ${ANTHROPIC_MODEL:claude-sonnet-4-20250514}
+      max-tokens: 1024
+      timeout: 60s
+      log-requests: ${LOG_AI_REQUESTS:false}
+      log-responses: ${LOG_AI_RESPONSES:false}
+  {%- elif values.aiProvider == "bedrock" %}
+  bedrock:
+    region: ${AWS_REGION:us-east-1}
+    chat-model:
+      model-id: ${BEDROCK_MODEL_ID:anthropic.claude-3-sonnet-20240229-v1:0}
+      temperature: 0.7
+      max-tokens: 1024
+  {%- endif %}
+{%- endif %}
+
+{%- if values.database == "aurora-postgresql" %}
+# PostgreSQL Database
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/${{values.name}}}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: ${{values.name}}-pool
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: ${DB_MIN_IDLE:2}
+      idle-timeout: 300000
+      connection-timeout: 10000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+    open-in-view: false
+{%- endif %}
+
+{%- if values.database == "aurora-mysql" %}
+# MySQL Database
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:mysql://localhost:3306/${{values.name}}}
+    username: ${DATABASE_USERNAME:root}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: ${{values.name}}-pool
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: ${DB_MIN_IDLE:2}
+      idle-timeout: 300000
+      connection-timeout: 10000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        jdbc:
+          time_zone: UTC
+    open-in-view: false
+{%- endif %}
+
+{%- if values.cache == "elasticache-redis" %}
+# Redis Cache
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: 1000ms
+{%- endif %}
+
+{%- if values.messaging == "sqs" or values.messaging == "sns-sqs" %}
+# AWS SQS Configuration
+spring:
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:us-east-1}
+      sqs:
+        enabled: true
+{%- endif %}
+
+# SpringDoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+    tryItOutEnabled: true
+  show-actuator: false
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+        slowCallRateThreshold: 100
+        slowCallDurationThreshold: 2s
+        recordExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.ResourceAccessException
+    instances:
+      external-api:
+        baseConfig: default
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+    instances:
+      external-api:
+        baseConfig: default
+  ratelimiter:
+    configs:
+      default:
+        limitForPeriod: 100
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0s
+    instances:
+      api-rate-limit:
+        baseConfig: default
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+        cancelRunningFuture: true
+    instances:
+      external-api:
+        baseConfig: default
+  bulkhead:
+    configs:
+      default:
+        maxConcurrentCalls: 25
+        maxWaitDuration: 0s
+    instances:
+      external-api:
+        baseConfig: default
+
+{%- if values.featureFlags %}
+# Feature Flags (Togglz)
+togglz:
+  enabled: true
+  feature-enums: fasti.sh.app.config.Features
+  console:
+    enabled: ${TOGGLZ_CONSOLE_ENABLED:true}
+    path: /togglz-console
+    secured: true
+  management:
+    enabled: true
+{%- endif %}
+
+# Async Processing
+spring:
+  task:
+    execution:
+      pool:
+        core-size: 8
+        max-size: 32
+        queue-capacity: 100
+        keep-alive: 60s
+      thread-name-prefix: async-exec-
+    scheduling:
+      pool:
+        size: 4
+      thread-name-prefix: async-sched-
+
+# Multi-tenancy
+multitenancy:
+  enabled: ${MULTITENANCY_ENABLED:false}
+  default-tenant: ${DEFAULT_TENANT:default}
+  require-tenant: ${REQUIRE_TENANT:false}
+
+# Outbox Processing
+outbox:
+  poll-interval: ${OUTBOX_POLL_INTERVAL:5000}
+  batch-size: ${OUTBOX_BATCH_SIZE:100}
+  max-retries: ${OUTBOX_MAX_RETRIES:5}
+
+# Request Signing (service-to-service)
+security:
+  signing:
+    enabled: ${REQUEST_SIGNING_ENABLED:false}
+    secret: ${REQUEST_SIGNING_SECRET:}
+    service-id: ${{values.name}}
+
+# Tracing & Baggage Propagation
+tracing:
+  baggage:
+    enabled: ${BAGGAGE_PROPAGATION_ENABLED:true}
+
+# CORS Configuration
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+  allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+  max-age: ${CORS_MAX_AGE:3600}
+
+{%- if values.database == "aurora-postgresql" or values.database == "aurora-mysql" %}
+# Flyway Database Migrations
+spring:
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+    clean-disabled: true
+{%- endif %}
+
+---
+# Development Profile
+spring:
+  config:
+    activate:
+      on-profile: local
+
+logging:
+  level:
+    root: DEBUG
+    fasti.sh: DEBUG
+  pattern:
+    console: "%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n"
