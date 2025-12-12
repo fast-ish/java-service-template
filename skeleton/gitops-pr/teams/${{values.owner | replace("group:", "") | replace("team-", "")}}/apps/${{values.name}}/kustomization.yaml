@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: ${{values.name}}
+
+# Reference the app's k8s directory from its own repository
+# ArgoCD will fetch from the app repo directly
+resources:
+  - github.com/fast-ish/${{values.name}}//k8s?ref=main
+
+# Override the image tag - updated by CI/CD pipeline
+images:
+  - name: IMAGE_PLACEHOLDER
+    newName: 351619759866.dkr.ecr.us-west-2.amazonaws.com/${{values.owner | replace("group:", "") | replace("team-", "")}}/${{values.name}}
+    newTag: latest
+
+namespace: team-${{values.owner | replace("group:", "") | replace("team-", "")}}

@@ -1,0 +1,39 @@
+# =============================================================================
+# APPLICATION CONFIGURATION
+# =============================================================================
+# This file is used by the ApplicationSet to generate ArgoCD Applications.
+# It contains metadata about the application for GitOps automation.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${{values.name}}-config
+  namespace: team-${{values.owner | replace("group:", "") | replace("team-", "")}}
+  labels:
+    app.kubernetes.io/name: ${{values.name}}
+    app.kubernetes.io/part-of: ${{values.owner | replace("group:", "") | replace("team-", "")}}
+    fasti.sh/app-type: service
+    fasti.sh/language: java
+    fasti.sh/framework: spring-boot
+  annotations:
+    backstage.io/kubernetes-id: ${{values.name}}
+data:
+  # Application metadata
+  APP_NAME: "${{values.name}}"
+  APP_DESCRIPTION: "${{values.description}}"
+  APP_OWNER: "${{values.owner}}"
+  APP_TYPE: "service"
+  APP_LANGUAGE: "java"
+  APP_FRAMEWORK: "spring-boot"
+
+  # Build configuration
+  JAVA_VERSION: "${{values.javaVersion}}"
+  SPRING_BOOT_VERSION: "${{values.springBootVersion}}"
+
+  # SLO configuration
+  SLO_AVAILABILITY: "${{values.sloAvailability}}"
+  SLO_LATENCY_P99: "${{values.sloLatencyP99}}"
+
+  # Rollout configuration
+  ROLLOUT_STRATEGY: "canary"
+  CANARY_STEPS: "5,20,50,80,100"

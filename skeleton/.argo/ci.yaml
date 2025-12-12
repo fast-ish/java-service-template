@@ -1,0 +1,23 @@
+# =============================================================================
+# ARGO CI CONFIGURATION
+# =============================================================================
+# This file configures the CI/CD pipeline for this service.
+# The Argo Events sensor reads this file to determine which workflow to trigger.
+# =============================================================================
+language: java
+team: ${{values.owner | replace("group:", "") | replace("team-", "")}}
+
+config:
+  # Java/Maven configuration
+  java-version: "${{values.javaVersion}}"
+  maven-goals: "clean verify"
+  skip-tests: false
+
+  # Deployment configuration
+  deploy-enabled: true
+  rollout-strategy: canary
+
+  # Analysis configuration (for Argo Rollouts)
+  analysis:
+    success-rate-threshold: "0.95"
+    latency-p99-threshold: "500"

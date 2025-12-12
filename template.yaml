@@ -313,6 +313,7 @@ spec:
           - java
           - spring-boot
           - backstage
+          - argo-rollouts
           - ${{ parameters.owner }}
 
     - id: register
@@ -322,6 +323,69 @@ spec:
         repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
         catalogInfoPath: /catalog-info.yaml
 
+    - id: fetch-gitops-pr
+      name: Fetch GitOps PR Template
+      action: fetch:template
+      input:
+        url: ./skeleton/gitops-pr
+        targetPath: gitops-pr
+        values:
+          name: ${{ parameters.name }}
+          owner: ${{ parameters.owner }}
+          description: ${{ parameters.description }}
+          javaVersion: ${{ parameters.javaVersion }}
+          sloAvailability: ${{ parameters.sloAvailability }}
+          sloLatencyP99: ${{ parameters.sloLatencyP99 }}
+          springBootVersion: ${{ parameters.springBootVersion }}
+
+    - id: create-gitops-pr
+      name: Create GitOps Pull Request
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=fast-ish&repo=aws-idp-gitops
+        branchName: add-app-${{ parameters.name }}
+        title: "feat(${{ parameters.name }}): add new java service"
+        description: |
+          ## New Application: ${{ parameters.name }}
+
+          This PR adds a new Java/Spring Boot service to the GitOps repository.
+
+          ### Application Details
+          | Property | Value |
+          |----------|-------|
+          | **Name** | ${{ parameters.name }} |
+          | **Owner** | ${{ parameters.owner }} |
+          | **Type** | Java Service (Spring Boot) |
+          | **Java Version** | ${{ parameters.javaVersion }} |
+          | **Spring Boot** | ${{ parameters.springBootVersion }} |
+
+          ### SLO Targets
+          | Metric | Target |
+          |--------|--------|
+          | **Availability** | ${{ parameters.sloAvailability }}% |
+          | **Latency (P99)** | ${{ parameters.sloLatencyP99 }} |
+
+          ### Deployment Strategy
+          - **Strategy**: Canary
+          - **Steps**: 5% → 20% → 50% → 80% → 100%
+          - **Analysis**: Automated success rate and latency checks
+
+          ### What This PR Creates
+          - ArgoCD Application configuration in `teams/<team>/apps/${{ parameters.name }}/`
+          - Kustomization overlay pointing to the app repository
+          - App metadata ConfigMap
+
+          ### Next Steps
+          1. Review and merge this PR
+          2. ArgoCD will automatically create the Application
+          3. Push code to the app repository to trigger CI/CD
+          4. Argo Workflows will build and deploy via canary rollout
+
+          ---
+          *Created via Backstage Java Service Template*
+        sourcePath: gitops-pr
+        targetPath: .
+
   output:
     links:
       - title: Repository
@@ -329,6 +393,12 @@ spec:
       - title: Open in Backstage
         icon: catalog
         entityRef: ${{ steps.register.output.entityRef }}
-      - title: Datadog APM
+      - title: GitOps Pull Request
+        icon: github
+        url: ${{ steps['create-gitops-pr'].output.remoteUrl }}
+      - title: ArgoCD Application
+        icon: cloud
+        url: https://argocd.fasti.sh/applications/${{ parameters.owner }}-${{ parameters.name }}
+      - title: Grafana Dashboard
         icon: dashboard
-        url: https://app.datadoghq.com/apm/services/${{ parameters.name }}
+        url: https://grafana.fasti.sh/d/service-overview?var-service=${{ parameters.name }}
